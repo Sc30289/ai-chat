@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 对话 · 记忆增强版</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">AI</div>
+      <div>
+        <h1>对话助手</h1>
+        <p>带长期记忆</p>
+      </div>
+    </div>
+    <button class="new-chat" id="newChat">
+      <span class="plus">+</span> 新对话
+    </button>
+    <div class="sessions" id="sessions"></div>
+    <div class="side-foot">
+      <div class="engine-dot" id="engineDot"></div>
+      <span id="engineLabel">检查中…</span>
+      <button class="link" id="openSettings">设置</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="title-wrap">
+        <h2 id="chatTitle">新对话</h2>
+        <span class="meta" id="chatMeta"></span>
+      </div>
+      <div class="engine-switch" id="engineSwitch"></div>
+      <div class="user-chip" id="userChip">
+        <span class="uavatar" id="userAvatar">U</span>
+        <span class="uname" id="userName">…</span>
+        <span class="ucaret">▾</span>
+        <div class="user-menu" id="userMenu" hidden>
+          <button type="button" data-act="rename">修改用户名</button>
+          <button type="button" data-act="password">修改密码</button>
+          <button type="button" data-act="logout" class="danger">退出登录</button>
+        </div>
+      </div>
+      <button class="icon-btn" id="btnSettings" title="设置">⚙</button>
+    </header>
+
+    <div class="memory-bar" id="memoryBar" hidden>
+      <span class="mem-ico">🧠</span>
+      <span class="mem-text" id="memText"></span>
+      <button class="link" id="toggleMem">展开摘要</button>
+    </div>
+    <div class="memory-card" id="memoryCard" hidden>
+      <div class="mem-head">长期记忆摘要（已压缩进 system prompt）</div>
+      <div class="mem-body" id="memBody"></div>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="input" rows="1" placeholder="说点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+        <button id="send" class="send" title="发送">↑</button>
+      </div>
+      <div class="hint" id="hint">回答会参考本会话的最近若干轮已有内容</div>
+    </div>
+  </main>
+</div>
+
+<div class="drawer-mask" id="mask" hidden></div>
+<aside class="drawer" id="drawer" hidden>
+  <div class="drawer-head">
+    <h3>设置</h3>
+    <button class="icon-btn" id="closeDrawer">✕</button>
+  </div>
+  <div class="drawer-body">
+    <section>
+      <h4>远端接口（OpenAI 兼容，可加多个）</h4>
+      <div id="remoteList"></div>
+      <div class="remote-add">
+        <select id="remotePreset"></select>
+        <button class="btn small" id="addRemote" type="button">+ 添加远端</button>
+      </div>
+      <p class="tip">每个远端独立保存 Key。留空表示不修改已保存的 Key。点顶部按钮即可切换用哪个。</p>
+    </section>
+
+    <section>
+      <h4>本地 MiniMind</h4>
+      <label>模型权重
+        <select id="cfgWeight"></select>
+      </label>
+      <label>LoRA 权重
+        <select id="cfgLora"></select>
+      </label>
+      <div class="row">
+        <label>最大新词数<input id="cfgMaxNew" type="number" min="16" max="512" /></label>
+        <label>上下文词数<input id="cfgPromptTok" type="number" min="64" max="1024" /></label>
+      </div>
+    </section>
+
+    <section>
+      <h4>记忆</h4>
+      <label class="check"><input type="checkbox" id="cfgMemEnabled" /> 启用长期记忆</label>
+      <div class="row">
+        <label>窗口轮数<input id="cfgWindow" type="number" min="1" max="30" /></label>
+        <label>摘要触发轮数<input id="cfgTrigger" type="number" min="2" max="60" /></label>
+      </div>
+      <label>系统提示词<textarea id="cfgSystem" rows="4"></textarea></label>
+    </section>
+
+    <div class="drawer-actions">
+      <button class="btn primary" id="saveSettings">保存</button>
+      <button class="btn" id="cancelSettings">取消</button>
+    </div>
+    <p class="tip">密钥保存在本机 data/config.json，不会上传到别处。也可改用环境变量 DEEPSEEK_API_KEY。</p>
+  </div>
+</aside>
+
+<div class="toast" id="toast" hidden></div>
+
+<div class="modal-mask" id="modalMask" hidden>
+  <form class="modal" id="modalForm">
+    <h3 id="modalTitle">修改</h3>
+    <div id="modalBody"></div>
+    <div class="modal-err" id="modalErr"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="modalCancel">取消</button>
+      <button type="submit" class="btn primary" id="modalOk">确定</button>
+    </div>
+  </form>
+</div>
+
+<!-- 登录 / 注册：直接盖在聊天页上，不跳转 -->
+<div class="auth-gate" id="authGate" hidden>
+  <form class="auth-card" id="authForm">
+    <div class="auth-brand">
+      <div class="auth-logo">AI</div>
+      <div>
+        <h1>AI 对话</h1>
+        <p>先登录，再开始聊</p>
+      </div>
+    </div>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" data-mode="login">登录</button>
+      <button type="button" class="auth-tab" data-mode="register">注册</button>
+    </div>
+    <label>用户名<input id="auName" placeholder="2~20 个字符" autocomplete="username" /></label>
+    <label>密码<input id="auPass" type="password" placeholder="至少 6 位" autocomplete="current-password" /></label>
+    <label id="auConfirmWrap" hidden>确认密码<input id="auConfirm" type="password" placeholder="再输一次" autocomplete="new-password" /></label>
+    <div class="auth-err" id="auErr"></div>
+    <button class="auth-submit" id="auSubmit" type="submit">登录</button>
+    <p class="auth-hint" id="auHint">还没有账号？点上面的「注册」创建一个。</p>
+  </form>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

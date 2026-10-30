@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-chat
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: AI_CHAT_NO_OPEN
+        value: "1"
